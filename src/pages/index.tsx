@@ -3,6 +3,8 @@ import ptBR from "date-fns/locale/pt-BR";
 import { GetStaticProps } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { useContext } from "react";
+import { PlayerContext } from "../contexts/PlayerContext";
 import { api } from "../services/api";
 import { convertDurationToTimeString } from "../utils/convertDurationToTimeString";
 import styles from "./home.module.scss";
@@ -24,11 +26,12 @@ type HomeProps = {
 };
 
 export default function Home({ latestEpisodes, allEpisodes }: HomeProps) {
-  return (
-    <div className={styles.homePage}>
-      <section className={styles.latestEpisodes}>
-        <h2>Último lançamentos</h2>
+  const { play } = useContext(PlayerContext);
 
+  return (
+    <div className={styles.homepage}>
+      <section className={styles.latestEpisodes}>
+        <h2>Últimos lançamentos</h2>
         <ul>
           {latestEpisodes.map((episode) => {
             return (
@@ -40,7 +43,6 @@ export default function Home({ latestEpisodes, allEpisodes }: HomeProps) {
                   alt={episode.title}
                   objectFit="cover"
                 />
-
                 <div className={styles.episodeDetails}>
                   <Link href={`/episodes/${episode.id}`}>
                     <a>{episode.title}</a>
@@ -50,7 +52,7 @@ export default function Home({ latestEpisodes, allEpisodes }: HomeProps) {
                   <span>{episode.durationAsString}</span>
                 </div>
 
-                <button type="button">
+                <button type="button" onClick={() => play(episode)}>
                   <img src="/play-green.svg" alt="Tocar episódio" />
                 </button>
               </li>
@@ -58,10 +60,8 @@ export default function Home({ latestEpisodes, allEpisodes }: HomeProps) {
           })}
         </ul>
       </section>
-
       <section className={styles.allEpisodes}>
         <h2>Todos episódios</h2>
-
         <table cellSpacing={0}>
           <thead>
             <tr>
@@ -108,9 +108,9 @@ export default function Home({ latestEpisodes, allEpisodes }: HomeProps) {
     </div>
   );
 }
-
-export const getStaticProps: GetStaticProps<HomeProps> = async () => {
-  const { data } = await api.get("/episodes", {
+// o Next identifica que tem que executar essa função antes de exibir o conteúdo da página para o usuário final
+export const getStaticProps: GetStaticProps = async () => {
+  const { data } = await api.get("episodes", {
     params: {
       _limit: 12,
       _sort: "published_at",
@@ -118,34 +118,29 @@ export const getStaticProps: GetStaticProps<HomeProps> = async () => {
     },
   });
 
-  const episodes: Array<Episode> = data.map((episode) => {
-    // parseISO vai converter para um date do javascript.
-    const publishedAt = format(parseISO(episode.published_at), "d MMM yy", {
-      locale: ptBR,
-    });
-    const duration = Number(episode.file.duration);
-    const durationAsString = convertDurationToTimeString(duration);
-
+  const episodes = data.map((episode) => {
     return {
       id: episode.id,
       title: episode.title,
       thumbnail: episode.thumbnail,
       members: episode.members,
+      publishedAt: format(parseISO(episode.published_at), "d MMM yy", {
+        locale: ptBR,
+      }),
+      duration: Number(episode.file.duration),
+      durationAsString: convertDurationToTimeString(
+        Number(episode.file.duration)
+      ),
       url: episode.file.url,
-      publishedAt,
-      duration,
-      durationAsString,
     };
   });
-
   const latestEpisodes = episodes.slice(0, 2);
   const allEpisodes = episodes.slice(2, episodes.length);
-
   return {
     props: {
       latestEpisodes,
       allEpisodes,
     },
-    revalidate: 60 * 60 * 8, // 8h
+    revalidate: 60 * 60 * 8,
   };
 };
